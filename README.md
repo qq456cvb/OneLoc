@@ -21,3 +21,6 @@ OneLoc: One-Shot General Object Localization
 </div>
  
 This paper presents a general one-shot object localization algorithm called OneLoc. Current one-shot object localization or detection methods either rely on a slow exhaustive feature matching process or lack the ability to generalize to novel objects. In contrast, our proposed OneLoc algorithm efficiently finds the object center and bounding box size by a special voting scheme. To keep our method scale-invariant, only unit center offset directions and relative sizes are estimated. A novel dense equalized voting module is proposed to better locate small texture-less objects. Experiments show that the proposed method achieves state-of-the-art overall performance on two datasets: OnePose dataset and LINEMOD dataset. In addition, our method can also achieve one-shot multi-instance detection and non-rigid object localization.
+
+## Code
+To be released.
