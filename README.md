@@ -7,7 +7,7 @@ OneLoc: One-Shot General Object Localization
 <a href="https://qq456cvb.github.io">Yang You</a>, Zhuochen Miao, Kai Xiong, Weiming Wang, <a href="https://www.mvig.org/">Cewu Lu</a>
 <br>
 <br>
-<a href='#'>
+<a href='https://arxiv.org/abs/2211.13392'>
   <img src='https://img.shields.io/badge/Arxiv-PDF-orange?style=flat&logo=arxiv&logoColor=orange' alt='Paper PDF'>
 </a>
 <a href='#'>
