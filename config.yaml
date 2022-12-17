@@ -1,0 +1,7 @@
+batch_size: 4
+num_workers: 4
+num_samples: 10000
+knn_rad_factor: 4
+ds_factor: 50
+kp_eq_factor: 50
+max_epochs: 50
