@@ -7,6 +7,7 @@ import torch.nn.functional as F
 from pathlib import Path
 from voting import vote_kernel
 from scipy.spatial import KDTree
+from superpoint import SuperPoint, sample_descriptors
 
 
 class ResLayer(torch.nn.Module):
@@ -39,7 +40,7 @@ class Model(nn.Module):
     def __init__(self, cfg) -> None:
         super().__init__()
         self.cfg = cfg
-        fcs = [256] + [128] * 20 + [3 + 2 + 2 + (2 if cfg.vote_corners else 0)]
+        fcs = [256] + [128] * 20 + [2 + 2]
         self.out_layer = nn.Sequential(
             *[ResLayer(fcs[i], fcs[i + 1], False) for i in range(len(fcs) - 1)]
         )
@@ -51,28 +52,21 @@ class Model(nn.Module):
         })
         extractor_model.cuda()
         extractor_model.eval()
-        load_network(extractor_model, 'data/models/extractors/SuperPoint/superpoint_v1.pth', force=True)
+        extractor_model.load_state_dict(torch.load('data/models/superpoint_v1.pth'), strict=True)
         self.extractor = extractor_model
         self.cache = dict()
         
     def forward(self, inputs):
         feats = inputs['point_feats'].reshape(-1, 256) # B x N x 256
-        # target = inputs['name_idx'][:, None].expand(-1, feats.shape[1]).reshape(-1)
-        gt_colors = inputs['point_colors'].reshape(-1, 3)  # [0, 1]
         gt_offsets = inputs['offsets'].reshape(-1, 2)
         gt_rel_size = inputs['rel_size'].reshape(-1, 2)
         
         out = self.out_layer(feats)
-        pred_colors = out[..., :3]
-        if self.cfg.vote_corners:
-            pred_offsets = torch.stack([out[..., 3:5], out[..., 7:9]], -2)
-        else:
-            pred_offsets = out[..., 3:5]
+        pred_offsets = out[..., :2]
         pred_offsets = F.normalize(pred_offsets, p=2, dim=-1).reshape(-1, 2)
-        pred_rel_size = out[..., 5:7]
+        pred_rel_size = out[..., 2:]
         
         loss = {
-            # 'obj': F.mse_loss(pred_colors[..., :3], gt_colors[..., :3]),
             'size': F.mse_loss(pred_rel_size, gt_rel_size),
             'unit_offset': -(torch.sum(pred_offsets * gt_offsets, -1) ** 2).mean()
         }
@@ -106,13 +100,10 @@ class Model(nn.Module):
             
         descs = sample_descriptors(torch.from_numpy(kps).float()[None], torch.from_numpy(np.moveaxis(raw_descs, -1, 0)[None]))[0].numpy().T
         out = self.out_layer(torch.from_numpy(descs).cuda())
-        pred_offsets = F.normalize(out[..., 3:5], p=2, dim=-1).cpu().numpy()
-        
-        colors = rgb[kps[:, 1], kps[:, 0]] / 255.
-        colors = colors[..., :3]
+        pred_offsets = F.normalize(out[..., :2], p=2, dim=-1).cpu().numpy()
         weights = np.ones((kps.shape[0],), dtype=np.float32)
         
-        pred_sizes = out[..., 5:7]
+        pred_sizes = out[..., 2:]
 
         block_size = (pair_idxs.shape[0] + 512 - 1) // 512
         grid_intvl = img_size // self.cfg.ds_factor
@@ -140,6 +131,8 @@ class Model(nn.Module):
             )
         )
         res = grid_obj.get().T
+        vis_grid = res / res.max()
+        cv2.imshow('heatmap', vis_grid)
         grid_size = grid_size.get().transpose((1, 0, 2))
         grid_cnt = grid_cnt.get().T
         grid_size = grid_size / (grid_cnt[..., None] + 1e-7)
@@ -151,7 +144,10 @@ class Model(nn.Module):
         
         loc = loc * grid_intvl + grid_intvl // 2
         
-        cv2.circle(rgb, (int(loc[0]), int(loc[1])), 5, (255, 0, 0), -1)
-        cv2.rectangle(rgb, (int(loc[0] - pred_size[0]), int(loc[1] - pred_size[1])), 
-                      (int(loc[0] + pred_size[0]), int(loc[1] + pred_size[1])), (0, 0, 255), 5)
+        vis = rgb.copy()
+        cv2.circle(vis, (int(loc[0]), int(loc[1])), 5, (0, 0, 255), -1)
+        cv2.rectangle(vis, (int(loc[0] - pred_size[0]), int(loc[1] - pred_size[1])), 
+                      (int(loc[0] + pred_size[0]), int(loc[1] + pred_size[1])), (255, 0, 0), 5)
+        cv2.imshow('vis', vis[..., ::-1])
+        cv2.waitKey(3000)
         

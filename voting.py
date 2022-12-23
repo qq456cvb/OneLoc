@@ -1,7 +1,7 @@
 import cupy as cp
 
 vote_kernel = cp.RawKernel(r'''
-    #include "/home/neil/ppf_matching/helper_math.cuh"
+    #include "helper_math.cuh"
     #define M_PI 3.14159265358979323846264338327950288
     extern "C" __global__
     void vote_kernel(
@@ -80,4 +80,4 @@ vote_kernel = cp.RawKernel(r'''
             atomicAdd(&grid_obj[center_grid_ceil.x * grid_y + center_grid_ceil.y], hh * prob);
         }
     }
-''', 'vote_kernel')
+''', 'vote_kernel', options=('-I .',))

@@ -3,11 +3,11 @@ import torch
 import pytorch_lightning as pl
 import numpy as np
 from torch.utils.data import DataLoader, Dataset
-from dataset import OnePoseRawDataset
+from dataset import DemoDataset
 from torch.optim import Adam, SGD, AdamW
 import hydra
 import cv2
-from model import ModelRaw
+from model import Model
 import os
 import time
 from pytorch_lightning import loggers as pl_loggers
@@ -32,40 +32,24 @@ class RGBVotingModule(pl.LightningModule):
     def __init__(self, cfg):
         super().__init__()
         self.cfg = cfg
-        self.model = ModelRaw(self.cfg)
+        self.model = Model(self.cfg)
         np.random.seed(int(round(time.time() * 1000)) % (2**32 - 1))
-        # self.images = []
-        self.root = sorted(glob(os.path.join('data/{}'.format(self.cfg.model_name.name), '*/')))[-1]
         
-            
-        # assert len(self.images) > 0
+        vidcap = cv2.VideoCapture('data/test.mp4')
+        self.imgs = []
+        while True:  
+            success, image = vidcap.read()
+            if not success:
+                break
+            self.imgs.append(image[..., ::-1])
         
     def train_dataloader(self):
         return DataLoader(
-            OnePoseRawDataset(self.cfg),
+            DemoDataset(self.cfg),
             batch_size=self.cfg.batch_size,
             shuffle=True,
             drop_last=True,
             num_workers=self.cfg.num_workers,
-            worker_init_fn=init_fn
-        )
-        
-    def val_dataloader(self):
-        class DummyDataset(Dataset):
-            def __init__(self) -> None:
-                super().__init__()
-            
-            def __len__(self):
-                return 1
-            
-            def __getitem__(self, index):
-                return 1
-        return DataLoader(
-            DummyDataset(),
-            batch_size=1,
-            shuffle=False,
-            drop_last=False,
-            num_workers=1,
             worker_init_fn=init_fn
         )
         
@@ -76,31 +60,19 @@ class RGBVotingModule(pl.LightningModule):
             self.log(k, v.item(), prog_bar=True, on_step=True, on_epoch=False)
         return loss
     
-    def validation_step(self, batch, batch_idx):
-        idx = np.random.randint(len(glob(os.path.join(self.root, 'color_full/*.png'))))
-        pose = np.loadtxt(Path(self.root) / 'poses_ba' / f'{idx}.txt')
-        rgb = cv2.imread(os.path.join(self.root, f'color_full/{idx}.png'))[..., ::-1].copy()
-        intrinsics = load_intrinsic(Path(self.root) / 'intrinsics.txt')
-        
-        inputs = {
-            'rgbs': torch.from_numpy((np.moveaxis(rgb, -1, 0) / 255.).astype(np.float32)[None]).cuda(),
-            'intrinsics': torch.from_numpy(intrinsics.astype(np.float32)[None]).cuda(),
-            'poses': torch.from_numpy(pose.astype(np.float32))[None].cuda()
-        }
-        self.model.predict(inputs)
-        return 
-    
-    def validation_epoch_end(self, outputs) -> None:
-        pass
+    def training_epoch_end(self, outputs) -> None:
+        if self.current_epoch % 1 == 0:
+            # do evaluation
+            rgb = self.imgs[np.random.randint(len(self.imgs))]
+            self.model.predict(rgb)
     
     def forward(self, image, intrinsic):
         return self.model.inference(image, intrinsic)
         
     def configure_optimizers(self):
-        return Adam(self.parameters(), lr=3e-4, weight_decay=1e-4)
-        # return AdamW(self.parameters(), lr=1e-3, weight_decay=0)
+        return Adam(self.model.parameters(), lr=1e-3, weight_decay=0)
     
-@hydra.main(config_path='configs', config_name='cls', version_base='1.2')
+@hydra.main(config_path='.', config_name='config', version_base='1.2')
 def main(cfg):
     hydra_cfg = hydra.core.hydra_config.HydraConfig.get()
     output_dir = hydra_cfg['runtime']['output_dir']
