@@ -44,3 +44,14 @@ Of course, you can capture your own object, and replace `ref.mp4`/`test.mp4`. Th
 
 ## Full Code
 Coming soon.
+
+## Citation
+If you find this work useful, please consider citing:
+```bibtex
+@article{you2022oneloc,
+  title={One-Shot General Object Localization},
+  author={You, Yang and Miao, Zhuochen and Xiong, Kai and Wang, Weiming and Lu, Cewu},
+  journal={arXiv preprint arXiv:2211.13392},
+  year={2022}
+}
+```
